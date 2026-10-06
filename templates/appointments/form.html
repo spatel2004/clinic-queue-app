@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% for category, message in messages %}
+<div class="alert alert-{{ category }}">{{ message }}</div>
+{% endfor %}
+{% endwith %}
+
+<h2>{{ title }}</h2>
+<form method="post" class="card card-body" style="max-width: 500px;">
+{{ form.hidden_tag() }}
+<div class="mb-3">
+{{ form.doctor_id.label(class="form-label") }}
+{{ form.doctor_id(class="form-select") }}
+</div>
+<div class="mb-3">
+{{ form.start_time.label(class="form-label") }}
+{{ form.start_time(class="form-control") }}
+</div>
+<div class="mb-3">
+{{ form.reason.label(class="form-label") }}
+{{ form.reason(class="form-control") }}
+{% for e in form.reason.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+</div>
+{{ form.submit(class="btn btn-primary") }}
+<a href="{{ url_for('appointments.list_appointments') }}" class="btn btn-link">Back</a>
+</form>
+{% endblock %}
