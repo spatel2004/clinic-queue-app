@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
 {% with messages = get_flashed_messages(with_categories=true) %}
-    {% for category, message in messages %}
-        <div class="alert alert-{{ category }}">{{ message }}</div>
-    {% endfor %}
+  {% for category, message in messages %}
+    <div class="alert alert-{{ category }}">{{ message }}</div>
+  {% endfor %}
 {% endwith %}
 
 <h2>Appointments</h2>
@@ -13,7 +13,7 @@
 <thead>
 <tr>
     <th>Date &amp; Time</th><th>Doctor</th><th>Patient</th>
-    <th>Reason</th><th>Status</th>
+    <th>Reason</th><th>Status</th><th>Actions</th>
 </tr>
 </thead>
 <tbody>
@@ -24,9 +24,21 @@
     <td>{{ a.patient.user.full_name }}</td>
     <td>{{ a.reason }}</td>
     <td>{{ a.status }}</td>
+    <td>
+        {% if a.status == "scheduled" %}
+        {% if current_user.role != "doctor" %}
+        <a href="{{ url_for('appointments.edit_appointment', appt_id=a.id) }}" class="btn btn-sm btn-outline-primary">Edit</a>
+        {% endif %}
+        <form method="post" action="{{ url_for('appointments.cancel_appointment', appt_id=a.id) }}" class="d-inline"
+            onsubmit="return confirm('Cancel this appointment?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-sm btn-outline-danger">Cancel</button>
+        </form>
+        {% endif %}
+    </td>
 </tr>
 {% else %}
-<tr><td colspan="5">No appointments yet.</td></tr>
+<tr><td colspan="6">No appointments yet.</td></tr>
 {% endfor %}
 </tbody>
 </table>

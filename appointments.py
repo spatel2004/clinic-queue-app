@@ -40,6 +40,7 @@ def list_appointments():
 
 @appointments_bp.route("/new", methods=["GET", "POST"])
 @login_required
+
 def create_appointment():
     if current_user.role != "patient":
         abort(403)  # admin booking on behalf of patients comes later
@@ -71,3 +72,64 @@ def create_appointment():
             return redirect(url_for("appointments.list_appointments"))
 
     return render_template("appointments/form.html", form=form, title="Book an appointment")
+
+def get_appointment_or_404(appt_id):
+    """Fetch an appointment, and block patients from touching anyone else's."""
+    appt = db.get_or_404(Appointment, appt_id)
+    if current_user.role == "patient" and appt.patient_id != current_user.patient.id:
+        abort(403)
+    if current_user.role == "doctor" and appt.doctor_id != current_user.doctor.id:
+        abort(403)
+    return appt
+
+
+@appointments_bp.route("/<int:appt_id>/cancel", methods=["POST"])
+@login_required
+def cancel_appointment(appt_id):
+    appt = get_appointment_or_404(appt_id)
+
+    if appt.status != "scheduled":
+        flash("Only scheduled appointments can be cancelled.", "warning")
+    else:
+        appt.status = "cancelled"
+        db.session.commit()
+        flash("Appointment cancelled.", "success")
+
+    return redirect(url_for("appointments.list_appointments"))
+
+@appointments_bp.route("/<int:appt_id>/edit", methods=["GET", "POST"])
+@login_required
+
+def edit_appointment(appt_id):
+    if current_user.role == "doctor":
+        abort(403)  # doctors can't reschedule patients' appointments
+
+    appt = get_appointment_or_404(appt_id)
+
+    if appt.status != "scheduled":
+        flash("Only scheduled appointments can be edited.", "warning")
+        return redirect(url_for("appointments.list_appointments"))
+
+    form = AppointmentForm(obj=appt)  # pre-fills the form with the current values
+    form.doctor_id.choices = [
+        (d.id, f"{d.user.full_name} ({d.speciality})") for d in Doctor.query.all()
+    ]
+
+    if form.validate_on_submit():
+        start = form.start_time.data
+        end = start + timedelta(minutes=SLOT_MINUTES)
+
+        if start <= datetime.now():
+            flash("Please choose a time in the future.", "danger")
+        elif has_conflict(form.doctor_id.data, start, end, exclude_id=appt.id):
+            flash("That doctor is already booked at that time.", "danger")
+        else:
+            appt.doctor_id = form.doctor_id.data
+            appt.start_time = start
+            appt.end_time = end
+            appt.reason = form.reason.data
+            db.session.commit()
+            flash("Appointment updated.", "success")
+            return redirect(url_for("appointments.list_appointments"))
+
+    return render_template("appointments/form.html", form=form, title="Edit appointment")
