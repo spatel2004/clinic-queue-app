@@ -10,6 +10,7 @@
         <h2 class="mb-4">Create an Account</h2>
 
         <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
             <div class="mb-3">
                 <label for="full_name" class="form-label">

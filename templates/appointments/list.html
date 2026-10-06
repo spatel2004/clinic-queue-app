@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>Appointments</h2>
+<p class="text-muted">Logged in as {{ current_user.full_name }} ({{ current_user.role }})</p>
+<a href="{{ url_for('appointments.create_appointment') }}" class="btn btn-primary mb-3">Book appointment</a>
+
+<table class="table table-striped">
+<thead>
+<tr>
+    <th>Date &amp; Time</th><th>Doctor</th><th>Patient</th>
+    <th>Reason</th><th>Status</th><th>Actions</th>
+</tr>
+</thead>
+<tbody>
+{% for a in appointments %}
+<tr>
+    <td>{{ a.start_time.strftime("%b %d, %Y %I:%M %p") }}</td>
+    <td>{{ a.doctor.user.full_name }}</td>
+    <td>{{ a.patient.user.full_name }}</td>
+    <td>{{ a.reason }}</td>
+    <td>{{ a.status }}</td>
+    <td>
+        {% if a.status == "scheduled" %}
+        {% if current_user.role != "doctor" %}
+        <a href="{{ url_for('appointments.edit_appointment', appt_id=a.id) }}" class="btn btn-sm btn-outline-primary">Edit</a>
+        {% endif %}
+        <form method="post" action="{{ url_for('appointments.cancel_appointment', appt_id=a.id) }}" class="d-inline"
+            onsubmit="return confirm('Cancel this appointment?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-sm btn-outline-danger">Cancel</button>
+        </form>
+        {% endif %}
+    </td>
+</tr>
+{% else %}
+<tr><td colspan="6">No appointments yet.</td></tr>
+{% endfor %}
+</tbody>
+</table>
+{% endblock %}

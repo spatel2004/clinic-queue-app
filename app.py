@@ -10,9 +10,15 @@ app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///clinic.db"
 
 db.init_app(app)
 login_manager.init_app(app)
+login_manager.login_view = "login"
+
+from flask_wtf.csrf import CSRFProtect
+CSRFProtect(app)
 
 import models
-from models import User
+from models import User, Patient, Doctor
+from appointments import appointments_bp
+app.register_blueprint(appointments_bp)
 
 
 def role_required(role):
@@ -63,6 +69,10 @@ def register():
         user.set_password(password)
 
         db.session.add(user)
+        if role == "patient":
+            db.session.add(Patient(user=user))
+        else:
+            db.session.add(Doctor(user=user))
         db.session.commit()
 
         flash("Registration successful. Please log in.", "success")
@@ -136,5 +146,4 @@ def admin_dashboard():
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
-
     app.run(debug=True)
