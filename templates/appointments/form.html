@@ -1,23 +1,83 @@
 {% extends "base.html" %}
+
 {% block content %}
 
 <h2>{{ title }}</h2>
+
 <form method="post" class="card card-body" style="max-width: 500px;">
-{{ form.hidden_tag() }}
-<div class="mb-3">
-{{ form.doctor_id.label(class="form-label") }}
-{{ form.doctor_id(class="form-select") }}
-</div>
-<div class="mb-3">
-{{ form.start_time.label(class="form-label") }}
-{{ form.start_time(class="form-control") }}
-</div>
-<div class="mb-3">
-{{ form.reason.label(class="form-label") }}
-{{ form.reason(class="form-control") }}
-{% for e in form.reason.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
-</div>
-{{ form.submit(class="btn btn-primary") }}
-<a href="{{ url_for('appointments.list_appointments') }}" class="btn btn-link">Back</a>
+
+    {{ form.hidden_tag() }}
+
+    {% if current_user.role == "admin" %}
+
+    <div class="mb-3">
+        {{ form.patient_id.label(class="form-label") }}
+        {{ form.patient_id(class="form-select") }}
+
+        {% for error in form.patient_id.errors %}
+            <div class="text-danger small">{{ error }}</div>
+        {% endfor %}
+    </div>
+
+    {% else %}
+
+    <input
+        type="hidden"
+        name="patient_id"
+        value="{{ current_user.patient.id }}"
+    >
+
+    {% endif %}
+
+
+    <div class="mb-3">
+
+        {{ form.doctor_id.label(class="form-label") }}
+
+        {{ form.doctor_id(class="form-select") }}
+
+        {% for error in form.doctor_id.errors %}
+            <div class="text-danger small">{{ error }}</div>
+        {% endfor %}
+
+    </div>
+
+
+    <div class="mb-3">
+
+        {{ form.start_time.label(class="form-label") }}
+
+        {{ form.start_time(class="form-control") }}
+
+        {% for error in form.start_time.errors %}
+            <div class="text-danger small">{{ error }}</div>
+        {% endfor %}
+
+    </div>
+
+
+    <div class="mb-3">
+
+        {{ form.reason.label(class="form-label") }}
+
+        {{ form.reason(class="form-control") }}
+
+        {% for error in form.reason.errors %}
+            <div class="text-danger small">{{ error }}</div>
+        {% endfor %}
+
+    </div>
+
+
+    {{ form.submit(class="btn btn-primary") }}
+
+    <a
+        href="{{ url_for('appointments.list_appointments') }}"
+        class="btn btn-link"
+    >
+        Back
+    </a>
+
 </form>
+
 {% endblock %}

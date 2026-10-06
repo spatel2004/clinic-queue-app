@@ -1,17 +1,83 @@
 {% extends "base.html" %}
 
-{% block title %}Doctor Dashboard{% endblock %}
+{% block title %}
+Doctor Dashboard
+{% endblock %}
 
 {% block content %}
 
-<h2>Doctor Dashboard</h2>
+<h2>
+    Doctor Dashboard
+</h2>
 
-<p>Welcome, {{ current_user.full_name }}!</p>
+<p>
+    Welcome, {{ current_user.full_name }}!
+</p>
 
 <div class="alert alert-info">
-    You are logged in as a doctor.
+
+    <strong>
+        Doctor
+    </strong>
+
+    <p class="mb-0 mt-1">
+        You can view and manage appointments assigned to you.
+    </p>
+
 </div>
 
-<p>Doctor scheduling and appointment management will be added in future sprints.</p>
+
+<div class="row g-3">
+
+    <div class="col-md-6">
+
+        <div class="card h-100 shadow-sm">
+
+            <div class="card-body">
+
+                <h5 class="card-title">
+                    My Schedule
+                </h5>
+
+                <p class="card-text">
+                    View your scheduled patient appointments.
+                </p>
+
+                <a
+                    href="{{ url_for('appointments.list_appointments') }}"
+                    class="btn btn-primary"
+                >
+                    View Schedule
+                </a>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <div class="col-md-6">
+
+        <div class="card h-100 shadow-sm">
+
+            <div class="card-body">
+
+                <h5 class="card-title">
+                    Appointment Management
+                </h5>
+
+                <p class="card-text">
+                    Appointment status management and patient
+                    notes will be expanded in future sprints.
+                </p>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
 
 {% endblock %}

@@ -1,17 +1,89 @@
 {% extends "base.html" %}
 
-{% block title %}Patient Dashboard{% endblock %}
+{% block title %}
+Patient Dashboard
+{% endblock %}
 
 {% block content %}
 
-<h2>Patient Dashboard</h2>
+<h2>
+    Patient Dashboard
+</h2>
 
-<p>Welcome, {{ current_user.full_name }}!</p>
+<p>
+    Welcome, {{ current_user.full_name }}!
+</p>
 
 <div class="alert alert-info">
-    You are logged in as a patient.
+
+    <strong>
+        Patient
+    </strong>
+
+    <p class="mb-0 mt-1">
+        You can book, view, modify, and cancel your appointments.
+    </p>
+
 </div>
 
-<p>Appointment and queue features will be added in future sprints.</p>
+
+<div class="row g-3">
+
+    <div class="col-md-6">
+
+        <div class="card h-100 shadow-sm">
+
+            <div class="card-body">
+
+                <h5 class="card-title">
+                    My Appointments
+                </h5>
+
+                <p class="card-text">
+                    View your upcoming and previous appointments.
+                </p>
+
+                <a
+                    href="{{ url_for('appointments.list_appointments') }}"
+                    class="btn btn-primary"
+                >
+                    View Appointments
+                </a>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <div class="col-md-6">
+
+        <div class="card h-100 shadow-sm">
+
+            <div class="card-body">
+
+                <h5 class="card-title">
+                    Book an Appointment
+                </h5>
+
+                <p class="card-text">
+                    Schedule an appointment with an available doctor.
+                </p>
+
+                <a
+                    href="{{ url_for('appointments.create_appointment') }}"
+                    class="btn btn-success"
+                >
+                    Book Appointment
+                </a>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
 
 {% endblock %}

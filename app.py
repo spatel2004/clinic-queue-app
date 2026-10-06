@@ -1,10 +1,13 @@
+from functools import wraps
+
 from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_login import login_user, logout_user, login_required, current_user
-from functools import wraps
+from flask_wtf.csrf import CSRFProtect
 
 from extensions import db, login_manager
 
 app = Flask(__name__)
+
 app.config["SECRET_KEY"] = "dev-secret-change-me"
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///clinic.db"
 
@@ -12,12 +15,13 @@ db.init_app(app)
 login_manager.init_app(app)
 login_manager.login_view = "login"
 
-from flask_wtf.csrf import CSRFProtect
 CSRFProtect(app)
 
 import models
 from models import User, Patient, Doctor
+
 from appointments import appointments_bp
+
 app.register_blueprint(appointments_bp)
 
 
@@ -29,9 +33,11 @@ def role_required(role):
             if current_user.role != role:
                 flash("You do not have permission to access this page.", "danger")
                 return redirect(url_for("dashboard"))
+
             return f(*args, **kwargs)
 
         return decorated_function
+
     return decorator
 
 
@@ -51,8 +57,22 @@ def register():
         password = request.form["password"]
         role = request.form["role"]
 
-        if role not in ["patient", "doctor"]:
+        # The only valid roles are patient, doctor, and admin.
+        # Admin represents the receptionist/admin role.
+        if role not in ["patient", "doctor", "admin"]:
             flash("Invalid role selected.", "danger")
+            return redirect(url_for("register"))
+
+        if not full_name:
+            flash("Full name is required.", "danger")
+            return redirect(url_for("register"))
+
+        if not email:
+            flash("Email is required.", "danger")
+            return redirect(url_for("register"))
+
+        if not password:
+            flash("Password is required.", "danger")
             return redirect(url_for("register"))
 
         existing_user = User.query.filter_by(email=email).first()
@@ -66,13 +86,23 @@ def register():
             full_name=full_name,
             role=role
         )
+
         user.set_password(password)
 
         db.session.add(user)
+        db.session.flush()
+
         if role == "patient":
-            db.session.add(Patient(user=user))
-        else:
-            db.session.add(Doctor(user=user))
+            patient = Patient(user_id=user.id)
+            db.session.add(patient)
+
+        elif role == "doctor":
+            doctor = Doctor(user_id=user.id)
+            db.session.add(doctor)
+
+        # Admin does not need a separate Admin table.
+        # The User record with role="admin" represents the receptionist/admin.
+
         db.session.commit()
 
         flash("Registration successful. Please log in.", "success")
@@ -94,6 +124,12 @@ def login():
 
         if user and user.check_password(password):
             login_user(user)
+
+            flash(
+                f"Welcome back, {user.full_name}!",
+                "success"
+            )
+
             return redirect(url_for("dashboard"))
 
         flash("Invalid email or password.", "danger")
@@ -105,7 +141,9 @@ def login():
 @login_required
 def logout():
     logout_user()
+
     flash("You have been logged out.", "success")
+
     return redirect(url_for("index"))
 
 
@@ -119,10 +157,14 @@ def dashboard():
         return redirect(url_for("doctor_dashboard"))
 
     if current_user.role == "admin":
+        # Admin = Receptionist
         return redirect(url_for("admin_dashboard"))
 
     flash("Invalid user role.", "danger")
-    return redirect(url_for("logout"))
+
+    logout_user()
+
+    return redirect(url_for("index"))
 
 
 @app.route("/patient/dashboard")
@@ -140,10 +182,12 @@ def doctor_dashboard():
 @app.route("/admin/dashboard")
 @role_required("admin")
 def admin_dashboard():
+    # Admin dashboard is also the receptionist dashboard.
     return render_template("admin_dashboard.html")
 
 
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
+
     app.run(debug=True)
