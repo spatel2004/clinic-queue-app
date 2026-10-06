@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Appointments</h2>
+<table class="table table-striped">
+<thead>
+<tr>
+    <th>Date &amp; Time</th><th>Doctor</th><th>Patient</th>
+    <th>Reason</th><th>Status</th>
+</tr>
+</thead>
+<tbody>
+{% for a in appointments %}
+<tr>
+    <td>{{ a.start_time.strftime("%b %d, %Y %I:%M %p") }}</td>
+    <td>{{ a.doctor.user.full_name }}</td>
+    <td>{{ a.patient.user.full_name }}</td>
+    <td>{{ a.reason }}</td>
+    <td>{{ a.status }}</td>
+</tr>
+{% else %}
+<tr><td colspan="5">No appointments yet.</td></tr>
+{% endfor %}
+</tbody>
+</table>
+{% endblock %}

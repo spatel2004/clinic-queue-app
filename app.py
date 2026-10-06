@@ -9,6 +9,8 @@ db.init_app(app)
 login_manager.init_app(app)
 
 import models
+from appointments import appointments_bp
+app.register_blueprint(appointments_bp)
 
 @app.route("/")
 def index():
