@@ -9,7 +9,7 @@ with app.app_context():
 
     # create an admin
     test_admin1 = User(email="admin@clinic.com", role="admin", full_name="Admin User 1")
-    test_admin1.set_password("adminpass")
+    test_admin1.set_password("admin123")
 
     # create a doctor 
     test_doctor1 = User(email="dr.lee@clinic.com", role="doctor", full_name="Dr.Lee")
