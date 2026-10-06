@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}Patient Dashboard{% endblock %}
+
+{% block content %}
+
+<h2>Patient Dashboard</h2>
+
+<p>Welcome, {{ current_user.full_name }}!</p>
+
+<div class="alert alert-info">
+    You are logged in as a patient.
+</div>
+
+<p>Appointment and queue features will be added in future sprints.</p>
+
+{% endblock %}
