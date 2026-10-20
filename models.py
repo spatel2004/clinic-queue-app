@@ -100,6 +100,21 @@ class Doctor(db.Model):
     )
 
 
+
+class DoctorAvailability(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    doctor_id = db.Column(
+        db.Integer,
+        db.ForeignKey("doctor.id"),
+        nullable=False
+    )
+    start_time = db.Column(db.DateTime, nullable=False)
+    end_time = db.Column(db.DateTime, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    doctor = db.relationship("Doctor", backref="availability_slots")
+
+
 class Appointment(db.Model):
     id = db.Column(
         db.Integer,
