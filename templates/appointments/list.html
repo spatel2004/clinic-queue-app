@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+
+{% block title %}
+Appointments - Clinic Queue
+{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h2>Appointments</h2>
+        <p class="text-muted mb-0">
+            Logged in as
+            <strong>{{ current_user.full_name }}</strong>
+            ({{ current_user.role }})
+        </p>
+    </div>
+
+    {% if current_user.role in ["patient", "admin"] %}
+        <a
+            href="{{ url_for('appointments.create_appointment') }}"
+            class="btn btn-primary"
+        >
+            Book Appointment
+        </a>
+    {% endif %}
+</div>
+
+<div class="table-responsive">
+    <table class="table table-striped table-bordered align-middle">
+        <thead class="table-light">
+            <tr>
+                <th>Date &amp; Time</th>
+                <th>Doctor</th>
+                <th>Patient</th>
+                <th>Reason</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+
+        <tbody>
+        {% for a in appointments %}
+            <tr>
+                <td>
+                    {{ a.start_time.strftime("%b %d, %Y %I:%M %p") }}
+                </td>
+
+                <td>
+                    {{ a.doctor.user.full_name }}
+                </td>
+
+                <td>
+                    {{ a.patient.user.full_name }}
+                </td>
+
+                <td>
+                    {{ a.reason }}
+                </td>
+
+                <td>
+                    {% set status = a.status %}
+
+                    {% if status in ["scheduled", "booked"] %}
+                        <span class="badge bg-success">Booked</span>
+                    {% elif status == "checked-in" %}
+                        <span class="badge bg-info text-dark">Checked-in</span>
+                    {% elif status == "in-progress" %}
+                        <span class="badge bg-primary">In progress</span>
+                    {% elif status == "complete" %}
+                        <span class="badge bg-secondary">Complete</span>
+                    {% elif status == "cancelled" %}
+                        <span class="badge bg-danger">Cancelled</span>
+                    {% else %}
+                        <span class="badge bg-secondary">
+                            {{ status }}
+                        </span>
+                    {% endif %}
+                </td>
+
+                <td>
+                    {% if a.status in ["scheduled", "booked"] %}
+                        {% if current_user.role != "doctor" %}
+                            <a
+                                href="{{ url_for(
+                                    'appointments.edit_appointment',
+                                    appt_id=a.id
+                                ) }}"
+                                class="btn btn-sm btn-outline-primary mb-1"
+                            >
+                                Edit
+                            </a>
+                        {% endif %}
+
+                        {% if current_user.role in ["patient", "admin"] %}
+                            <form
+                                method="post"
+                                action="{{ url_for(
+                                    'appointments.cancel_appointment',
+                                    appt_id=a.id
+                                ) }}"
+                                class="d-inline"
+                                onsubmit="return confirm(
+                                    'Cancel this appointment?'
+                                );"
+                            >
+                                <input
+                                    type="hidden"
+                                    name="csrf_token"
+                                    value="{{ csrf_token() }}"
+                                >
+
+                                <button
+                                    type="submit"
+                                    class="btn btn-sm btn-outline-danger mb-1"
+                                >
+                                    Cancel
+                                </button>
+                            </form>
+                        {% endif %}
+                    {% endif %}
+
+                    {% if current_user.role in ["doctor", "admin"] %}
+                        {% if status_transitions.get(a.status) %}
+                            {% set next_status = status_transitions.get(a.status) %}
+
+                            <form
+                                method="post"
+                                action="{{ url_for(
+                                    'appointments.advance_appointment_status',
+                                    appt_id=a.id
+                                ) }}"
+                                class="d-inline"
+                            >
+                                <input
+                                    type="hidden"
+                                    name="csrf_token"
+                                    value="{{ csrf_token() }}"
+                                >
+
+                                <button
+                                    type="submit"
+                                    class="btn btn-sm btn-outline-success mb-1"
+                                >
+                                    {% if next_status == "checked-in" %}
+                                        Check in
+                                    {% elif next_status == "in-progress" %}
+                                        Start appointment
+                                    {% elif next_status == "complete" %}
+                                        Mark complete
+                                    {% endif %}
+                                </button>
+                            </form>
+                        {% endif %}
+                    {% endif %}
+
+                    {% if a.status not in ["scheduled", "booked"]
+                          and a.status not in status_transitions %}
+                        <span class="text-muted">No actions</span>
+                    {% endif %}
+                </td>
+            </tr>
+        {% else %}
+            <tr>
+                <td colspan="6" class="text-center text-muted py-4">
+                    No appointments yet.
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

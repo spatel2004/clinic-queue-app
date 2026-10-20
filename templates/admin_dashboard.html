@@ -1,17 +1,87 @@
 {% extends "base.html" %}
 
-{% block title %}Admin Dashboard{% endblock %}
+{% block title %}
+Admin Dashboard
+{% endblock %}
 
 {% block content %}
 
-<h2>Admin Dashboard</h2>
+<h2>
+    Receptionist / Admin Dashboard
+</h2>
 
-<p>Welcome, {{ current_user.full_name }}!</p>
+<p>
+    Welcome, {{ current_user.full_name }}!
+</p>
+
 
 <div class="alert alert-info">
-    You are logged in as an administrator.
+
+    <strong>
+        Receptionist / Admin
+    </strong>
+
+    <p class="mb-0 mt-1">
+        You can manage patient appointments and assist
+        with clinic operations.
+    </p>
+
 </div>
 
-<p>Clinic management features will be added in future sprints.</p>
+
+<div class="row g-3">
+
+    <div class="col-md-6">
+
+        <div class="card h-100 shadow-sm">
+
+            <div class="card-body">
+
+                <h5 class="card-title">
+                    Appointments
+                </h5>
+
+                <p class="card-text">
+                    View and manage appointments for
+                    patients and doctors.
+                </p>
+
+                <a
+                    href="{{ url_for('appointments.list_appointments') }}"
+                    class="btn btn-primary"
+                >
+                    View Appointments
+                </a>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <div class="col-md-6">
+
+        <div class="card h-100 shadow-sm">
+
+            <div class="card-body">
+
+                <h5 class="card-title">
+                    Clinic Operations
+                </h5>
+
+                <p class="card-text">
+                    Queue management and additional
+                    receptionist features will be added
+                    in future sprints.
+                </p>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
 
 {% endblock %}
