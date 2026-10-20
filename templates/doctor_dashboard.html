@@ -6,87 +6,45 @@ Doctor Dashboard
 
 {% block content %}
 
-
 <h2>Doctor Dashboard</h2>
+<p>Welcome, {{ current_user.full_name }}!</p>
 
-<p>Welcome to your doctor dashboard.</p>
-
-<a href="{{ url_for('doctor_availability') }}"
-   class="btn btn-primary">
-    Manage Availability
-</a>
-<h2>
-    Doctor Dashboard
-</h2>
-
-<p>
-    Welcome, {{ current_user.full_name }}!
-</p>
+<div class="mb-4">
+    <a href="{{ url_for('doctor_availability') }}" class="btn btn-primary">
+        Manage Availability
+    </a>
+</div>
 
 <div class="alert alert-info">
-
-    <strong>
-        Doctor
-    </strong>
-
+    <strong>Doctor</strong>
     <p class="mb-0 mt-1">
         You can view and manage appointments assigned to you.
     </p>
-
 </div>
 
-
 <div class="row g-3">
-
     <div class="col-md-6">
-
         <div class="card h-100 shadow-sm">
-
             <div class="card-body">
-
-                <h5 class="card-title">
-                    My Schedule
-                </h5>
-
-                <p class="card-text">
-                    View your scheduled patient appointments.
-                </p>
-
-                <a
-                    href="{{ url_for('appointments.list_appointments') }}"
-                    class="btn btn-primary"
-                >
+                <h5 class="card-title">My Schedule</h5>
+                <p class="card-text">View your scheduled patient appointments.</p>
+                <a href="{{ url_for('appointments.list_appointments') }}" class="btn btn-primary">
                     View Schedule
                 </a>
-
             </div>
-
         </div>
-
     </div>
-
 
     <div class="col-md-6">
-
         <div class="card h-100 shadow-sm">
-
             <div class="card-body">
-
-                <h5 class="card-title">
-                    Appointment Management
-                </h5>
-
+                <h5 class="card-title">Appointment Management</h5>
                 <p class="card-text">
-                    Appointment status management and patient
-                    notes will be expanded in future sprints.
+                    Appointment status management and patient notes will be expanded in future sprints.
                 </p>
-
             </div>
-
         </div>
-
     </div>
-
 </div>
 
 {% endblock %}
