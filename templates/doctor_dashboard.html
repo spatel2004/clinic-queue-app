@@ -4,14 +4,14 @@
 
 {% block content %}
 
+
 <h2>Doctor Dashboard</h2>
 
-<p>Welcome, {{ current_user.full_name }}!</p>
+<p>Welcome to your doctor dashboard.</p>
 
-<div class="alert alert-info">
-    You are logged in as a doctor.
-</div>
-
-<p>Doctor scheduling and appointment management will be added in future sprints.</p>
+<a href="{{ url_for('doctor_availability') }}"
+   class="btn btn-primary">
+    Manage Availability
+</a>
 
 {% endblock %}

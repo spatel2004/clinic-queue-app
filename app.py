@@ -4,6 +4,10 @@ from functools import wraps
 
 from extensions import db, login_manager
 
+from datetime import datetime
+from flask_login import login_required, current_user
+from models import DoctorAvailability, Doctor
+
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "dev-secret-change-me"
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///clinic.db"
@@ -131,6 +135,141 @@ def doctor_dashboard():
 @role_required("admin")
 def admin_dashboard():
     return render_template("admin_dashboard.html")
+
+
+# View all availability slots for the logged-in doctor
+@app.route("/doctor/availability")
+@login_required
+def doctor_availability():
+    if current_user.role != "doctor":
+        flash("Only doctors can manage availability.", "danger")
+        return redirect(url_for("dashboard"))
+
+    doctor = current_user.doctor
+
+    if doctor is None:
+        flash("Doctor profile not found.", "danger")
+        return redirect(url_for("dashboard"))
+
+    slots = (
+        DoctorAvailability.query
+        .filter_by(doctor_id=doctor.id)
+        .order_by(DoctorAvailability.start_time)
+        .all()
+    )
+
+    return render_template("doctor_availability.html", slots=slots)
+
+
+# Add a new availability slot
+@app.route("/doctor/availability/add", methods=["POST"])
+@login_required
+def add_availability():
+    if current_user.role != "doctor" or current_user.doctor is None:
+        flash("You are not authorized to do this.", "danger")
+        return redirect(url_for("dashboard"))
+
+    try:
+        start_time = datetime.fromisoformat(request.form["start_time"])
+        end_time = datetime.fromisoformat(request.form["end_time"])
+    except (ValueError, KeyError):
+        flash("Please enter valid start and end times.", "danger")
+        return redirect(url_for("doctor_availability"))
+
+    if start_time >= end_time:
+        flash("The end time must be after the start time.", "danger")
+        return redirect(url_for("doctor_availability"))
+
+    doctor_id = current_user.doctor.id
+
+    # Prevent overlapping availability slots for the same doctor
+    overlap = DoctorAvailability.query.filter(
+        DoctorAvailability.doctor_id == doctor_id,
+        DoctorAvailability.start_time < end_time,
+        DoctorAvailability.end_time > start_time
+    ).first()
+
+    if overlap:
+        flash("This slot overlaps with an existing availability slot.", "danger")
+        return redirect(url_for("doctor_availability"))
+
+    slot = DoctorAvailability(
+        doctor_id=doctor_id,
+        start_time=start_time,
+        end_time=end_time
+    )
+
+    db.session.add(slot)
+    db.session.commit()
+
+    flash("Availability slot added successfully.", "success")
+    return redirect(url_for("doctor_availability"))
+
+
+# Edit an existing availability slot
+@app.route("/doctor/availability/edit/<int:slot_id>", methods=["POST"])
+@login_required
+def edit_availability(slot_id):
+    if current_user.role != "doctor" or current_user.doctor is None:
+        flash("You are not authorized to do this.", "danger")
+        return redirect(url_for("dashboard"))
+
+    slot = db.session.get(DoctorAvailability, slot_id)
+
+    # A doctor can only edit their own slots
+    if slot is None or slot.doctor_id != current_user.doctor.id:
+        flash("Availability slot not found.", "danger")
+        return redirect(url_for("doctor_availability"))
+
+    try:
+        start_time = datetime.fromisoformat(request.form["start_time"])
+        end_time = datetime.fromisoformat(request.form["end_time"])
+    except (ValueError, KeyError):
+        flash("Please enter valid start and end times.", "danger")
+        return redirect(url_for("doctor_availability"))
+
+    if start_time >= end_time:
+        flash("The end time must be after the start time.", "danger")
+        return redirect(url_for("doctor_availability"))
+
+    overlap = DoctorAvailability.query.filter(
+        DoctorAvailability.doctor_id == current_user.doctor.id,
+        DoctorAvailability.id != slot.id,
+        DoctorAvailability.start_time < end_time,
+        DoctorAvailability.end_time > start_time
+    ).first()
+
+    if overlap:
+        flash("This slot overlaps with another availability slot.", "danger")
+        return redirect(url_for("doctor_availability"))
+
+    slot.start_time = start_time
+    slot.end_time = end_time
+    db.session.commit()
+
+    flash("Availability updated successfully.", "success")
+    return redirect(url_for("doctor_availability"))
+
+
+# Delete an availability slot
+@app.route("/doctor/availability/delete/<int:slot_id>", methods=["POST"])
+@login_required
+def delete_availability(slot_id):
+    if current_user.role != "doctor" or current_user.doctor is None:
+        flash("You are not authorized to do this.", "danger")
+        return redirect(url_for("dashboard"))
+
+    slot = db.session.get(DoctorAvailability, slot_id)
+
+    if slot is None or slot.doctor_id != current_user.doctor.id:
+        flash("Availability slot not found.", "danger")
+        return redirect(url_for("doctor_availability"))
+
+    db.session.delete(slot)
+    db.session.commit()
+
+    flash("Availability slot deleted.", "success")
+    return redirect(url_for("doctor_availability"))
 
 
 if __name__ == "__main__":
