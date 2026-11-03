@@ -1,6 +1,95 @@
+
 {% extends "base.html" %}
 
 {% block content %}
-<h1>Clinic Appointment & Queue Management</h1>
-<p class="lead">Book appointments and track your place in line with ease.</p>
+
+<section class="landing-hero">
+    <div class="landing-copy">
+        <span class="landing-eyebrow">
+            YOUR CARE, BETTER ORGANIZED
+        </span>
+
+        <h1>
+            Better care.<br>
+            <span>Smoother visits.</span>
+        </h1>
+
+        <p class="landing-description">
+            Managing your healthcare appointments should be simple.
+            Book visits, keep track of your queue position, and spend
+            less time worrying about waiting.
+        </p>
+
+        <div class="landing-actions">
+            <a href="{{ url_for('register') }}"
+                class="btn btn-primary landing-primary-btn">
+                Get Started
+                <span aria-hidden="true">→</span>
+            </a>
+
+            <a href="{{ url_for('login') }}"
+               class="btn landing-secondary-btn">
+                Sign In
+            </a>
+        </div>
+
+        <div class="landing-note">
+            <span class="landing-note-dot"></span>
+            A simpler clinic experience starts here.
+        </div>
+    </div>
+
+    <div class="landing-visual">
+        <img
+            src="https://images.pexels.com/photos/4266936/pexels-photo-4266936.jpeg?auto=compress&cs=tinysrgb&w=1200"
+            alt="Doctor speaking with a patient during a consultation"
+            class="landing-image"
+        >
+
+        <div class="image-caption">
+            <div class="image-caption-icon">✚</div>
+            <div>
+                <strong>Care that feels organized</strong>
+                <p>Appointments and queues, in one place.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="landing-features">
+    <div class="landing-section-heading">
+        <span class="landing-eyebrow">HOW IT WORKS</span>
+        <h2>Everything you need for a smoother visit.</h2>
+        <p>Simple tools that help patients and clinic staff stay organized.</p>
+    </div>
+
+    <div class="landing-feature-grid">
+        <div class="landing-feature">
+            <div class="feature-icon">▦</div>
+            <h3>Easy appointments</h3>
+            <p>Book and manage appointments without the unnecessary hassle.</p>
+        </div>
+
+        <div class="landing-feature">
+            <div class="feature-icon">↗</div>
+            <h3>Queue tracking</h3>
+            <p>Keep track of your queue number and see your progress.</p>
+        </div>
+
+        <div class="landing-feature">
+            <div class="feature-icon">♡</div>
+            <h3>Organized care</h3>
+            <p>Give clinic staff the tools to manage appointments and daily queues.</p>
+        </div>
+    </div>
+</section>
+
+<section class="landing-bottom">
+    <h2>Ready to make your next visit simpler?</h2>
+    <p>Create an account to get started with your appointments.</p>
+    <a href="{{ url_for('register') }}" class="btn btn-light">
+        Create an account →
+    </a>
+</section>
+
 {% endblock %}

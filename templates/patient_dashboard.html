@@ -1,3 +1,4 @@
+
 {% extends "base.html" %}
 
 {% block title %}
@@ -6,82 +7,263 @@ Patient Dashboard
 
 {% block content %}
 
-<h2>
-    Patient Dashboard
-</h2>
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-1">Patient Dashboard</h2>
+        <p class="text-muted mb-0">
+            Welcome, {{ current_user.full_name }}.
+        </p>
+    </div>
 
-<p>
-    Welcome, {{ current_user.full_name }}!
-</p>
-
-<div class="alert alert-info">
-
-    <strong>
-        Patient
-    </strong>
-
-    <p class="mb-0 mt-1">
-        You can book, view, modify, and cancel your appointments.
-    </p>
-
+    <a
+        href="{{ url_for('appointments.create_appointment') }}"
+        class="btn btn-primary mt-2 mt-md-0"
+    >
+        Book an Appointment
+    </a>
 </div>
 
 
+<!-- Today's queue status -->
+<div class="card shadow-sm mb-4">
+
+    <div class="card-body">
+
+        <h5 class="mb-3">My Queue Status</h5>
+
+        {% if queue_entry %}
+
+            <div class="row g-3 align-items-center">
+
+                <div class="col-md-4">
+                    <p class="text-muted mb-1">Your Queue Number</p>
+                    <h1 class="display-4 fw-bold mb-0">
+                        #{{ queue_entry.queue_number }}
+                    </h1>
+                </div>
+
+                <div class="col-md-4">
+                    <p class="text-muted mb-1">Current Status</p>
+
+                    {% if queue_entry.status == "waiting" %}
+                        <span class="badge bg-warning text-dark fs-6">
+                            Waiting
+                        </span>
+
+                    {% elif queue_entry.status == "in-progress" %}
+                        <span class="badge bg-primary fs-6">
+                            In Progress
+                        </span>
+
+                    {% elif queue_entry.status == "completed" %}
+                        <span class="badge bg-success fs-6">
+                            Completed
+                        </span>
+                    {% endif %}
+                </div>
+
+                <div class="col-md-4">
+                    <p class="text-muted mb-1">Patients Ahead</p>
+                    <h2 class="mb-0">{{ patients_ahead }}</h2>
+                    <small class="text-muted">
+                        Waiting or currently being seen
+                    </small>
+                </div>
+
+            </div>
+
+            <hr>
+
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <p class="text-muted small mb-1">Doctor</p>
+                    <strong>
+                        {{ queue_entry.appointment.doctor.user.full_name }}
+                    </strong>
+                </div>
+
+                <div class="col-md-6">
+                    <p class="text-muted small mb-1">Appointment Time</p>
+                    <strong>
+                        {{ queue_entry.appointment.start_time.strftime("%I:%M %p") }}
+                    </strong>
+                </div>
+            </div>
+
+            {% if queue_entry.status == "waiting" %}
+                <div class="alert alert-info mt-3 mb-0">
+                    You are checked in. Please wait until your number is called.
+                </div>
+
+            {% elif queue_entry.status == "in-progress" %}
+                <div class="alert alert-primary mt-3 mb-0">
+                    Your appointment is currently in progress.
+                </div>
+
+            {% elif queue_entry.status == "completed" %}
+                <div class="alert alert-success mt-3 mb-0">
+                    Your appointment has been completed. Thank you for visiting!
+                </div>
+            {% endif %}
+
+        {% else %}
+
+            <div class="text-center py-4">
+                <h6>No active queue entry</h6>
+                <p class="text-muted mb-0">
+                    Once you arrive at the clinic, reception will check you in
+                    and assign your queue number.
+                </p>
+            </div>
+
+        {% endif %}
+
+    </div>
+</div>
+
+
+<!-- Today's appointments -->
+<div class="card shadow-sm mb-4">
+
+    <div class="card-body">
+
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h5 class="mb-1">Today's Appointments</h5>
+                <p class="text-muted small mb-0">
+                    Your scheduled visits for today.
+                </p>
+            </div>
+
+            <span class="badge bg-secondary">
+                {{ appointments_today|length }} appointments
+            </span>
+        </div>
+
+        {% if appointments_today %}
+
+            <div class="table-responsive">
+                <table class="table align-middle">
+
+                    <thead>
+                        <tr>
+                            <th>Doctor</th>
+                            <th>Time</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for appointment in appointments_today %}
+
+                            <tr>
+                                <td>
+                                    <strong>
+                                        {{ appointment.doctor.user.full_name }}
+                                    </strong>
+
+                                    <div class="small text-muted">
+                                        {{ appointment.doctor.speciality or "General" }}
+                                    </div>
+                                </td>
+
+                                <td>
+                                    {{ appointment.start_time.strftime("%I:%M %p") }}
+                                </td>
+
+                                <td>
+                                    {% if appointment.status == "scheduled" or appointment.status == "booked" %}
+                                        <span class="badge bg-secondary">
+                                            Booked
+                                        </span>
+
+                                    {% elif appointment.status == "checked-in" %}
+                                        <span class="badge bg-warning text-dark">
+                                            Checked-in
+                                        </span>
+
+                                    {% elif appointment.status == "in-progress" %}
+                                        <span class="badge bg-primary">
+                                            In Progress
+                                        </span>
+
+                                    {% elif appointment.status == "complete" %}
+                                        <span class="badge bg-success">
+                                            Completed
+                                        </span>
+
+                                    {% elif appointment.status == "cancelled" %}
+                                        <span class="badge bg-danger">
+                                            Cancelled
+                                        </span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+
+                        {% endfor %}
+                    </tbody>
+
+                </table>
+            </div>
+
+        {% else %}
+
+            <div class="text-center py-4">
+                <p class="text-muted mb-0">
+                    You have no appointments scheduled for today.
+                </p>
+            </div>
+
+        {% endif %}
+
+        <a
+            href="{{ url_for('appointments.list_appointments') }}"
+            class="btn btn-outline-primary btn-sm mt-2"
+        >
+            View All Appointments
+        </a>
+
+    </div>
+</div>
+
+
+<!-- Booking options -->
 <div class="row g-3">
 
     <div class="col-md-6">
-
         <div class="card h-100 shadow-sm">
-
             <div class="card-body">
-
-                <h5 class="card-title">
-                    My Appointments
-                </h5>
-
+                <h5 class="card-title">My Appointments</h5>
                 <p class="card-text">
-                    View your upcoming and previous appointments.
+                    View upcoming and previous appointments, or manage eligible bookings.
                 </p>
 
                 <a
                     href="{{ url_for('appointments.list_appointments') }}"
-                    class="btn btn-primary"
+                    class="btn btn-outline-primary"
                 >
                     View Appointments
                 </a>
-
             </div>
-
         </div>
-
     </div>
 
-
     <div class="col-md-6">
-
         <div class="card h-100 shadow-sm">
-
             <div class="card-body">
-
-                <h5 class="card-title">
-                    Book an Appointment
-                </h5>
-
+                <h5 class="card-title">Book an Appointment</h5>
                 <p class="card-text">
-                    Schedule an appointment with an available doctor.
+                    Schedule a visit with an available doctor.
                 </p>
 
                 <a
                     href="{{ url_for('appointments.create_appointment') }}"
-                    class="btn btn-success"
+                    class="btn btn-primary"
                 >
                     Book Appointment
                 </a>
-
             </div>
-
         </div>
-
     </div>
 
 </div>

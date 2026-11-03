@@ -1,87 +1,244 @@
+
 {% extends "base.html" %}
 
 {% block title %}
-Admin Dashboard
+Receptionist Dashboard
 {% endblock %}
 
 {% block content %}
 
-<h2>
-    Receptionist / Admin Dashboard
-</h2>
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-1">Receptionist Dashboard</h2>
+        <p class="text-muted mb-0">
+            Welcome, {{ current_user.full_name }}. Manage today's clinic activity.
+        </p>
+    </div>
 
-<p>
-    Welcome, {{ current_user.full_name }}!
-</p>
+    <a
+        href="{{ url_for('appointments.list_appointments') }}"
+        class="btn btn-primary mt-2 mt-md-0"
+    >
+        View All Appointments
+    </a>
+</div>
 
+<!-- Queue summary -->
+<div class="row g-3 mb-4">
 
-<div class="alert alert-info">
+    <div class="col-md-4">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body">
+                <p class="text-muted mb-1">Waiting</p>
+                <h2 class="mb-0">{{ waiting_count }}</h2>
+                <small class="text-muted">Patients waiting for their appointment</small>
+            </div>
+        </div>
+    </div>
 
-    <strong>
-        Receptionist / Admin
-    </strong>
+    <div class="col-md-4">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body">
+                <p class="text-muted mb-1">In Progress</p>
+                <h2 class="mb-0">{{ in_progress_count }}</h2>
+                <small class="text-muted">Appointments currently underway</small>
+            </div>
+        </div>
+    </div>
 
-    <p class="mb-0 mt-1">
-        You can manage patient appointments and assist
-        with clinic operations.
-    </p>
+    <div class="col-md-4">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body">
+                <p class="text-muted mb-1">Completed</p>
+                <h2 class="mb-0">{{ completed_count }}</h2>
+                <small class="text-muted">Appointments completed today</small>
+            </div>
+        </div>
+    </div>
 
 </div>
 
 
-<div class="row g-3">
+<!-- Pending check-ins -->
+<div class="card shadow-sm mb-4">
 
-    <div class="col-md-6">
+    <div class="card-body">
 
-        <div class="card h-100 shadow-sm">
-
-            <div class="card-body">
-
-                <h5 class="card-title">
-                    Appointments
-                </h5>
-
-                <p class="card-text">
-                    View and manage appointments for
-                    patients and doctors.
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+            <div>
+                <h5 class="mb-1">Pending Check-ins</h5>
+                <p class="text-muted small mb-0">
+                    Check in patients when they arrive at reception.
                 </p>
-
-                <a
-                    href="{{ url_for('appointments.list_appointments') }}"
-                    class="btn btn-primary"
-                >
-                    View Appointments
-                </a>
-
             </div>
 
+            <span class="badge bg-secondary">
+                {{ pending_checkin|length }} pending
+            </span>
         </div>
 
-    </div>
+        {% if pending_checkin %}
 
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Patient</th>
+                            <th>Doctor</th>
+                            <th>Appointment Time</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
 
-    <div class="col-md-6">
+                    <tbody>
+                        {% for appointment in pending_checkin %}
+                            <tr>
+                                <td>
+                                    <strong>
+                                        {{ appointment.patient.user.full_name }}
+                                    </strong>
+                                </td>
 
-        <div class="card h-100 shadow-sm">
+                                <td>
+                                    {{ appointment.doctor.user.full_name }}
+                                </td>
 
-            <div class="card-body">
+                                <td>
+                                    {{ appointment.start_time.strftime("%I:%M %p") }}
+                                </td>
 
-                <h5 class="card-title">
-                    Clinic Operations
-                </h5>
+                                <td>
+                                    <form
+                                        method="POST"
+                                        action="{{ url_for(
+                                            'appointments.check_in_patient',
+                                            appt_id=appointment.id
+                                        ) }}"
+                                    >
+                                        <input
+                                            type="hidden"
+                                            name="csrf_token"
+                                            value="{{ csrf_token() }}"
+                                        >
 
-                <p class="card-text">
-                    Queue management and additional
-                    receptionist features will be added
-                    in future sprints.
-                </p>
-
+                                        <button
+                                            type="submit"
+                                            class="btn btn-primary btn-sm"
+                                        >
+                                            Check In
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
 
-        </div>
+        {% else %}
+
+            <div class="text-center py-4">
+                <p class="text-muted mb-0">
+                    No patients are currently waiting to check in.
+                </p>
+            </div>
+
+        {% endif %}
 
     </div>
+</div>
 
+
+<!-- Clinic-wide queue -->
+<div class="card shadow-sm mb-4">
+
+    <div class="card-body">
+
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+            <div>
+                <h5 class="mb-1">Today's Clinic Queue</h5>
+                <p class="text-muted small mb-0">
+                    All checked-in patients, ordered by queue number.
+                </p>
+            </div>
+
+            <span class="badge bg-secondary">
+                {{ queue_entries|length }} patients
+            </span>
+        </div>
+
+        {% if queue_entries %}
+
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Queue No.</th>
+                            <th>Patient</th>
+                            <th>Doctor</th>
+                            <th>Check-in Time</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for entry in queue_entries %}
+                            <tr>
+                                <td>
+                                    <strong>#{{ entry.queue_number }}</strong>
+                                </td>
+
+                                <td>
+                                    {{ entry.appointment.patient.user.full_name }}
+                                </td>
+
+                                <td>
+                                    {{ entry.appointment.doctor.user.full_name }}
+                                </td>
+
+                                <td>
+                                    {{ entry.checked_in_at.strftime("%I:%M %p") }}
+                                </td>
+
+                                <td>
+                                    {% if entry.status == "waiting" %}
+                                        <span class="badge bg-warning text-dark">
+                                            Waiting
+                                        </span>
+
+                                    {% elif entry.status == "in-progress" %}
+                                        <span class="badge bg-primary">
+                                            In Progress
+                                        </span>
+
+                                    {% elif entry.status == "completed" %}
+                                        <span class="badge bg-success">
+                                            Completed
+                                        </span>
+
+                                    {% else %}
+                                        <span class="badge bg-secondary">
+                                            {{ entry.status|title }}
+                                        </span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+        {% else %}
+
+            <div class="text-center py-4">
+                <p class="text-muted mb-0">
+                    No patients have checked in today.
+                </p>
+            </div>
+
+        {% endif %}
+
+    </div>
 </div>
 
 {% endblock %}
