@@ -1,6 +1,8 @@
+
 from datetime import datetime
 
 from flask_login import UserMixin
+from sqlalchemy import UniqueConstraint
 
 from extensions import db, login_manager
 
@@ -73,13 +75,8 @@ class Patient(db.Model):
         nullable=False
     )
 
-    date_of_birth = db.Column(
-        db.Date
-    )
-
-    phone = db.Column(
-        db.String(30)
-    )
+    date_of_birth = db.Column(db.Date)
+    phone = db.Column(db.String(30))
 
 
 class Doctor(db.Model):
@@ -95,9 +92,7 @@ class Doctor(db.Model):
         nullable=False
     )
 
-    speciality = db.Column(
-        db.String(100)
-    )
+    speciality = db.Column(db.String(100))
 
 
 
@@ -171,6 +166,20 @@ class Appointment(db.Model):
 
 
 class Queue(db.Model):
+    __tablename__ = "queue"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "appointment_id",
+            name="uq_queue_appointment"
+        ),
+        UniqueConstraint(
+            "queue_date",
+            "queue_number",
+            name="uq_daily_queue_number"
+        ),
+    )
+
     id = db.Column(
         db.Integer,
         primary_key=True
@@ -183,16 +192,35 @@ class Queue(db.Model):
     )
 
     queue_number = db.Column(
-        db.Integer
+        db.Integer,
+        nullable=False
+    )
+
+    queue_date = db.Column(
+        db.Date,
+        nullable=False,
+        default=lambda: datetime.utcnow().date(),
+        index=True
     )
 
     status = db.Column(
         db.String(50),
+        nullable=False,
         default="waiting"
     )
 
     checked_in_at = db.Column(
-        db.DateTime
+        db.DateTime,
+        nullable=False,
+        default=datetime.utcnow
+    )
+
+    appointment = db.relationship(
+        "Appointment",
+        backref=db.backref(
+            "queue_entry",
+            uselist=False
+        )
     )
 
 

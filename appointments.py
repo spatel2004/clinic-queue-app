@@ -1,3 +1,4 @@
+
 from datetime import datetime, timedelta
 
 from flask import (
@@ -11,9 +12,10 @@ from flask import (
 
 from flask_login import login_required, current_user
 from sqlalchemy import or_
+from sqlalchemy.exc import IntegrityError
 
 from extensions import db
-from models import Appointment, Doctor, Patient
+from models import Appointment, Doctor, Patient, Queue
 from appointment_forms import AppointmentForm
 
 
@@ -25,8 +27,6 @@ appointments_bp = Blueprint(
 
 SLOT_MINUTES = 30
 
-# Existing database compatibility:
-# "scheduled" is displayed as "Booked".
 STATUS_LABELS = {
     "scheduled": "Booked",
     "booked": "Booked",
@@ -36,10 +36,8 @@ STATUS_LABELS = {
     "cancelled": "Cancelled",
 }
 
-# Only these forward transitions are permitted.
+# Appointments can only start after reception checks the patient in.
 STATUS_TRANSITIONS = {
-    "scheduled": "checked-in",
-    "booked": "checked-in",
     "checked-in": "in-progress",
     "in-progress": "complete",
 }
@@ -95,10 +93,7 @@ def list_appointments():
             doctor_id=current_user.doctor.id
         )
 
-    elif current_user.role == "admin":
-        pass
-
-    else:
+    elif current_user.role != "admin":
         abort(403)
 
     appointments = query.order_by(
@@ -221,50 +216,151 @@ def get_appointment_or_404(appt_id):
     return appointment
 
 
-@appointments_bp.route("/<int:appt_id>/status", methods=["POST"])
+@appointments_bp.route("/<int:appt_id>/check-in", methods=["POST"])
 @login_required
-def advance_appointment_status(appt_id):
-    """Advance an appointment by exactly one permitted status transition."""
+def check_in_patient(appt_id):
+    """Reception checks in a patient and assigns the next daily queue number."""
 
-    # Patients must not change clinical workflow statuses.
-    if current_user.role not in ["doctor", "admin"]:
-        abort(403)
+    if current_user.role != "admin":
+        flash("Only administrators can check patients in.", "warning")
+        return redirect(url_for("appointments.list_appointments"))
 
     appointment = get_appointment_or_404(appt_id)
 
-    current_status = appointment.status
-
-    # Normalize the legacy "booked" status to the existing
-    # database value "scheduled" for transition lookup.
-    if current_status == "booked":
-        current_status = "booked"
-
-    next_status = STATUS_TRANSITIONS.get(current_status)
-
-    if next_status is None:
+    if appointment.status not in ["scheduled", "booked"]:
         flash(
-            "This appointment cannot advance to another status.",
+            "This appointment cannot be checked in.",
             "warning",
         )
         return redirect(url_for("appointments.list_appointments"))
 
-    appointment.status = next_status
+    # Prevent duplicate queue entries.
+    existing_entry = Queue.query.filter_by(
+        appointment_id=appointment.id
+    ).first()
+
+    if existing_entry:
+        flash(
+            "This patient has already been checked in.",
+            "warning",
+        )
+        return redirect(url_for("appointments.list_appointments"))
+
+    # Queue numbers reset each calendar day.
+    check_in_time = datetime.now()
+    queue_date = check_in_time.date()
+
+    if appointment.start_time.date() != queue_date:
+        flash(
+            "Patients can only be checked in on their appointment date.",
+            "warning",
+        )
+        return redirect(url_for("appointments.list_appointments"))
+
+    # Find the highest queue number assigned today.
+    highest_number = (
+        db.session.query(db.func.max(Queue.queue_number))
+        .filter(Queue.queue_date == queue_date)
+        .scalar()
+    )
+
+    next_number = (highest_number or 0) + 1
+
+    queue_entry = Queue(
+        appointment_id=appointment.id,
+        queue_number=next_number,
+        queue_date=queue_date,
+        status="waiting",
+        checked_in_at=check_in_time,
+    )
+
+    appointment.status = "checked-in"
+    db.session.add(queue_entry)
 
     try:
         db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash(
+            "Unable to assign a queue number. Please refresh and try again.",
+            "danger",
+        )
+        return redirect(url_for("appointments.list_appointments"))
+    except Exception:
+        db.session.rollback()
+        flash(
+            "An error occurred while checking in the patient.",
+            "danger",
+        )
+        return redirect(url_for("appointments.list_appointments"))
+
+    flash(
+        f"Patient checked in successfully. Queue number: {next_number}.",
+        "success",
+    )
+
+    return redirect(url_for("appointments.list_appointments"))
+
+
+@appointments_bp.route("/<int:appt_id>/status", methods=["POST"])
+@login_required
+def advance_appointment_status(appt_id):
+    """Allow admins and assigned doctors to start and complete appointments."""
+
+    # Both admins and doctors can update appointment statuses.
+    if current_user.role not in ["admin", "doctor"]:
+        flash(
+            "You do not have permission to update appointment status.",
+            "warning",
+        )
+        return redirect(url_for("appointments.list_appointments"))
+
+    appointment = get_appointment_or_404(appt_id)
+
+    next_status = STATUS_TRANSITIONS.get(appointment.status)
+
+    if next_status is None:
+        flash(
+            "This appointment cannot advance from its current status. "
+            "The patient must be checked in first.",
+            "warning",
+        )
+        return redirect(url_for("appointments.list_appointments"))
+
+    # A queue entry must exist before an appointment can start or complete.
+    queue_entry = Queue.query.filter_by(
+        appointment_id=appointment.id
+    ).first()
+
+    if queue_entry is None:
+        flash(
+            "No queue entry was found for this appointment. "
+            "Please contact reception.",
+            "danger",
+        )
+        return redirect(url_for("appointments.list_appointments"))
+
+    # Update appointment and queue statuses together.
+    appointment.status = next_status
+
+    if next_status == "in-progress":
+        queue_entry.status = "in-progress"
+    elif next_status == "complete":
+        queue_entry.status = "completed"
+
+    try:
+        db.session.commit()
+        flash(
+            f"Appointment successfully updated to "
+            f"{STATUS_LABELS[next_status]}.",
+            "success",
+        )
     except Exception:
         db.session.rollback()
         flash(
             "Unable to update appointment status. Please try again.",
             "danger",
         )
-        return redirect(url_for("appointments.list_appointments"))
-
-    flash(
-        f"Appointment status updated to "
-        f"{STATUS_LABELS[next_status]}.",
-        "success",
-    )
 
     return redirect(url_for("appointments.list_appointments"))
 
@@ -272,6 +368,8 @@ def advance_appointment_status(appt_id):
 @appointments_bp.route("/<int:appt_id>/cancel", methods=["POST"])
 @login_required
 def cancel_appointment(appt_id):
+    """Patients and admins can cancel scheduled appointments."""
+
     appointment = get_appointment_or_404(appt_id)
 
     if current_user.role not in ["patient", "admin"]:
@@ -294,6 +392,8 @@ def cancel_appointment(appt_id):
 @appointments_bp.route("/<int:appt_id>/edit", methods=["GET", "POST"])
 @login_required
 def edit_appointment(appt_id):
+    """Patients and admins can edit scheduled appointments."""
+
     if current_user.role == "doctor":
         abort(403)
 

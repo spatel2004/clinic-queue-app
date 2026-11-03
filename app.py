@@ -1,3 +1,5 @@
+
+from datetime import datetime, timedelta
 from functools import wraps
 
 from flask import Flask, render_template, request, redirect, url_for, flash
@@ -22,7 +24,7 @@ login_manager.login_view = "login"
 CSRFProtect(app)
 
 import models
-from models import User, Patient, Doctor
+from models import User, Patient, Doctor, Appointment, Queue
 
 from appointments import appointments_bp
 
@@ -35,7 +37,10 @@ def role_required(role):
         @login_required
         def decorated_function(*args, **kwargs):
             if current_user.role != role:
-                flash("You do not have permission to access this page.", "danger")
+                flash(
+                    "You do not have permission to access this page.",
+                    "danger",
+                )
                 return redirect(url_for("dashboard"))
 
             return f(*args, **kwargs)
@@ -43,6 +48,18 @@ def role_required(role):
         return decorated_function
 
     return decorator
+
+
+def get_today_range():
+    """Return today's local date range for appointment queries."""
+
+    today = datetime.now().date()
+    tomorrow = today + timedelta(days=1)
+
+    return today, datetime.combine(today, datetime.min.time()), datetime.combine(
+        tomorrow,
+        datetime.min.time(),
+    )
 
 
 @app.route("/")
@@ -61,8 +78,6 @@ def register():
         password = request.form["password"]
         role = request.form["role"]
 
-        # The only valid roles are patient, doctor, and admin.
-        # Admin represents the receptionist/admin role.
         if role not in ["patient", "doctor", "admin"]:
             flash("Invalid role selected.", "danger")
             return redirect(url_for("register"))
@@ -88,7 +103,7 @@ def register():
         user = User(
             email=email,
             full_name=full_name,
-            role=role
+            role=role,
         )
 
         user.set_password(password)
@@ -103,9 +118,6 @@ def register():
         elif role == "doctor":
             doctor = Doctor(user_id=user.id)
             db.session.add(doctor)
-
-        # Admin does not need a separate Admin table.
-        # The User record with role="admin" represents the receptionist/admin.
 
         db.session.commit()
 
@@ -131,7 +143,7 @@ def login():
 
             flash(
                 f"Welcome back, {user.full_name}!",
-                "success"
+                "success",
             )
 
             return redirect(url_for("dashboard"))
@@ -161,7 +173,6 @@ def dashboard():
         return redirect(url_for("doctor_dashboard"))
 
     if current_user.role == "admin":
-        # Admin = Receptionist
         return redirect(url_for("admin_dashboard"))
 
     flash("Invalid user role.", "danger")
@@ -174,20 +185,152 @@ def dashboard():
 @app.route("/patient/dashboard")
 @role_required("patient")
 def patient_dashboard():
-    return render_template("patient_dashboard.html")
+    if not current_user.patient:
+        flash("Patient profile not found.", "danger")
+        return redirect(url_for("logout"))
+
+    today, start_of_day, start_of_tomorrow = get_today_range()
+
+    patient_id = current_user.patient.id
+
+    appointments_today = (
+        Appointment.query
+        .filter(
+            Appointment.patient_id == patient_id,
+            Appointment.start_time >= start_of_day,
+            Appointment.start_time < start_of_tomorrow,
+        )
+        .order_by(Appointment.start_time.asc())
+        .all()
+    )
+
+    queue_entry = (
+        Queue.query
+        .join(Appointment)
+        .filter(
+            Appointment.patient_id == patient_id,
+            Queue.queue_date == today,
+        )
+        .first()
+    )
+
+    patients_ahead = 0
+
+    if queue_entry:
+        patients_ahead = (
+            Queue.query
+            .filter(
+                Queue.queue_date == today,
+                Queue.queue_number < queue_entry.queue_number,
+                Queue.status.in_(["waiting", "in-progress"]),
+            )
+            .count()
+        )
+
+    return render_template(
+        "patient_dashboard.html",
+        appointments_today=appointments_today,
+        queue_entry=queue_entry,
+        patients_ahead=patients_ahead,
+    )
 
 
 @app.route("/doctor/dashboard")
 @role_required("doctor")
 def doctor_dashboard():
-    return render_template("doctor_dashboard.html")
+    if not current_user.doctor:
+        flash("Doctor profile not found.", "danger")
+        return redirect(url_for("logout"))
+
+    today, start_of_day, start_of_tomorrow = get_today_range()
+
+    doctor_id = current_user.doctor.id
+
+    appointments_today = (
+        Appointment.query
+        .filter(
+            Appointment.doctor_id == doctor_id,
+            Appointment.start_time >= start_of_day,
+            Appointment.start_time < start_of_tomorrow,
+        )
+        .order_by(Appointment.start_time.asc())
+        .all()
+    )
+
+    queue_entries = (
+        Queue.query
+        .join(Appointment)
+        .filter(
+            Appointment.doctor_id == doctor_id,
+            Queue.queue_date == today,
+        )
+        .order_by(Queue.queue_number.asc())
+        .all()
+    )
+
+    return render_template(
+        "doctor_dashboard.html",
+        appointments_today=appointments_today,
+        queue_entries=queue_entries,
+    )
 
 
 @app.route("/admin/dashboard")
 @role_required("admin")
 def admin_dashboard():
-    # Admin dashboard is also the receptionist dashboard.
-    return render_template("admin_dashboard.html")
+    today, start_of_day, start_of_tomorrow = get_today_range()
+
+    appointments_today = (
+        Appointment.query
+        .filter(
+            Appointment.start_time >= start_of_day,
+            Appointment.start_time < start_of_tomorrow,
+        )
+        .order_by(Appointment.start_time.asc())
+        .all()
+    )
+
+    # Patients who have appointments today but have not checked in.
+    pending_checkin = (
+        Appointment.query
+        .filter(
+            Appointment.start_time >= start_of_day,
+            Appointment.start_time < start_of_tomorrow,
+            Appointment.status.in_(["scheduled", "booked"]),
+        )
+        .order_by(Appointment.start_time.asc())
+        .all()
+    )
+
+    # The complete clinic-wide queue for today.
+    queue_entries = (
+        Queue.query
+        .filter_by(queue_date=today)
+        .order_by(Queue.queue_number.asc())
+        .all()
+    )
+
+    waiting_count = sum(
+        1 for entry in queue_entries if entry.status == "waiting"
+    )
+
+    in_progress_count = sum(
+        1 for entry in queue_entries if entry.status == "in-progress"
+    )
+
+    completed_count = sum(
+        1 for entry in queue_entries if entry.status == "completed"
+    )
+
+    return render_template(
+        "admin_dashboard.html",
+        appointments_today=appointments_today,
+        pending_checkin=pending_checkin,
+        queue_entries=queue_entries,
+        waiting_count=waiting_count,
+        in_progress_count=in_progress_count,
+        completed_count=completed_count,
+    )
 
 
 # View all availability slots for the logged-in doctor
