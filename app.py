@@ -1,8 +1,9 @@
-
+from sqlalchemy import or_, and_
 from datetime import datetime, timedelta
 from functools import wraps
 
 from flask import Flask, render_template, request, redirect, url_for, flash
+from appointments import expire_called_walk_ins
 from flask_login import login_user, logout_user, login_required, current_user
 from flask_wtf.csrf import CSRFProtect
 
@@ -29,6 +30,11 @@ from models import User, Patient, Doctor, Appointment, Queue
 from appointments import appointments_bp
 
 app.register_blueprint(appointments_bp)
+@app.before_request
+def check_walk_in_no_shows():
+    """Expire called walk-ins when the application receives a request."""
+    with app.app_context():
+        expire_called_walk_ins()
 
 
 def role_required(role):
@@ -204,28 +210,51 @@ def patient_dashboard():
         .all()
     )
 
+
     queue_entry = (
         Queue.query
-        .join(Appointment)
+        .outerjoin(Appointment, Queue.appointment_id == Appointment.id)
         .filter(
-            Appointment.patient_id == patient_id,
             Queue.queue_date == today,
+            Queue.status.notin_(["completed", "no-show"]),
+            or_(
+                Queue.patient_id == patient_id,
+                Appointment.patient_id == patient_id
+            )
         )
+        .order_by(Queue.queue_number.asc())
         .first()
     )
+
+
 
     patients_ahead = 0
 
     if queue_entry:
+        assigned_doctor_id = (
+            queue_entry.doctor_id
+            if queue_entry.entry_type == "walk_in"
+            else queue_entry.appointment.doctor_id
+        )
+
         patients_ahead = (
             Queue.query
+            .outerjoin(
+                Appointment,
+                Queue.appointment_id == Appointment.id
+            )
             .filter(
                 Queue.queue_date == today,
                 Queue.queue_number < queue_entry.queue_number,
-                Queue.status.in_(["waiting", "in-progress"]),
+                Queue.status.in_(["waiting", "called"]),
+                or_(
+                    Queue.doctor_id == assigned_doctor_id,
+                    Appointment.doctor_id == assigned_doctor_id
+                )
             )
             .count()
         )
+
 
     return render_template(
         "patient_dashboard.html",
@@ -259,10 +288,20 @@ def doctor_dashboard():
 
     queue_entries = (
         Queue.query
-        .join(Appointment)
+        .outerjoin(Appointment, Queue.appointment_id == Appointment.id)
         .filter(
-            Appointment.doctor_id == doctor_id,
             Queue.queue_date == today,
+            Queue.status.notin_(["completed", "no-show"]),
+            or_(
+                and_(
+                    Queue.entry_type == "appointment",
+                    Appointment.doctor_id == doctor_id
+                ),
+                and_(
+                    Queue.entry_type == "walk_in",
+                    Queue.doctor_id == doctor_id
+                )
+            )
         )
         .order_by(Queue.queue_number.asc())
         .all()
@@ -303,12 +342,21 @@ def admin_dashboard():
     )
 
     # The complete clinic-wide queue for today.
-    queue_entries = (
+
+    # All queue entries for today, including completed visits.
+    all_queue_entries = (
         Queue.query
         .filter_by(queue_date=today)
         .order_by(Queue.queue_number.asc())
         .all()
     )
+
+    # Only show active patients in the receptionist's queue.
+    queue_entries = [
+        entry for entry in all_queue_entries
+        if entry.status not in ["completed", "no-show"]
+    ]
+
 
     waiting_count = sum(
         1 for entry in queue_entries if entry.status == "waiting"
@@ -318,9 +366,16 @@ def admin_dashboard():
         1 for entry in queue_entries if entry.status == "in-progress"
     )
 
+
     completed_count = sum(
-        1 for entry in queue_entries if entry.status == "completed"
+        1 for entry in all_queue_entries
+        if entry.status == "completed"
     )
+
+
+    # Get all patients and doctors for walk-in registration
+    patients = Patient.query.order_by(Patient.id).all()
+    doctors = Doctor.query.order_by(Doctor.id).all()
 
     return render_template(
         "admin_dashboard.html",
@@ -330,6 +385,8 @@ def admin_dashboard():
         waiting_count=waiting_count,
         in_progress_count=in_progress_count,
         completed_count=completed_count,
+        patients=patients,
+        doctors=doctors,
     )
 
 

@@ -2,7 +2,7 @@
 from datetime import datetime
 
 from flask_login import UserMixin
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import UniqueConstraint, CheckConstraint
 
 from extensions import db, login_manager
 
@@ -119,7 +119,7 @@ class Appointment(db.Model):
     patient_id = db.Column(
         db.Integer,
         db.ForeignKey("patient.id"),
-        nullable=False
+        nullable=True
     )
 
     doctor_id = db.Column(
@@ -178,6 +178,22 @@ class Queue(db.Model):
             "queue_number",
             name="uq_daily_queue_number"
         ),
+        CheckConstraint(
+            """
+            (appointment_id IS NOT NULL AND patient_id IS NULL)
+            OR
+            (appointment_id IS NULL AND patient_id IS NOT NULL)
+            """,
+            name="ck_queue_patient_source"
+        ),
+        CheckConstraint(
+            """
+            (entry_type = 'appointment' AND appointment_id IS NOT NULL)
+            OR
+            (entry_type = 'walk_in' AND patient_id IS NOT NULL)
+            """,
+            name="ck_queue_entry_type"
+        ),
     )
 
     id = db.Column(
@@ -188,8 +204,35 @@ class Queue(db.Model):
     appointment_id = db.Column(
         db.Integer,
         db.ForeignKey("appointment.id"),
-        nullable=False
+        nullable=True
     )
+
+    patient_id = db.Column(
+        db.Integer,
+        db.ForeignKey("patient.id"),
+        nullable=True
+    )
+
+    doctor_id = db.Column(
+        db.Integer,
+        db.ForeignKey("doctor.id"),
+        nullable=True
+    )
+
+
+    entry_type = db.Column(
+        db.String(20),
+        nullable=False,
+        default="appointment"
+        )
+
+    called_at = db.Column(
+        db.DateTime,
+        nullable=True
+    )
+
+    patient = db.relationship("Patient")
+    doctor = db.relationship("Doctor")
 
     queue_number = db.Column(
         db.Integer,

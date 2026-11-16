@@ -8,6 +8,7 @@ from flask import (
     url_for,
     flash,
     abort,
+    request,
 )
 
 from flask_login import login_required, current_user
@@ -26,6 +27,28 @@ appointments_bp = Blueprint(
 )
 
 SLOT_MINUTES = 30
+NO_SHOW_GRACE_MINUTES = 5
+
+def expire_called_walk_ins():
+    """Mark called walk-ins as no-shows after the grace period."""
+
+    now = datetime.now()
+    cutoff = now - timedelta(minutes=NO_SHOW_GRACE_MINUTES)
+
+    expired_entries = Queue.query.filter(
+        Queue.entry_type == "walk_in",
+        Queue.status == "called",
+        Queue.called_at.isnot(None),
+        Queue.called_at <= cutoff
+    ).all()
+
+    for entry in expired_entries:
+        entry.status = "no-show"
+
+    if expired_entries:
+        db.session.commit()
+
+    return len(expired_entries)
 
 STATUS_LABELS = {
     "scheduled": "Booked",
@@ -466,3 +489,209 @@ def edit_appointment(appt_id):
         form=form,
         title="Edit Appointment",
     )
+
+
+@appointments_bp.route("/walk-in", methods=["POST"])
+@login_required
+def register_walk_in():
+    """Register a walk-in patient in today's queue."""
+
+    if current_user.role != "admin":
+        abort(403)
+
+    try:
+        patient_id = int(request.form["patient_id"])
+        doctor_id = int(request.form["doctor_id"])
+    except (KeyError, ValueError):
+        flash("Please select a valid patient and doctor.", "danger")
+        return redirect(url_for("admin_dashboard"))
+
+    patient = db.session.get(Patient, patient_id)
+    doctor = db.session.get(Doctor, doctor_id)
+
+    if patient is None or doctor is None:
+        flash("Patient or doctor not found.", "danger")
+        return redirect(url_for("admin_dashboard"))
+
+    now = datetime.now()
+    today = now.date()
+
+    # Prevent the patient from joining today's queue twice.
+    existing_entry = (
+        Queue.query
+        .outerjoin(
+            Appointment,
+            Queue.appointment_id == Appointment.id
+        )
+        .filter(
+            Queue.queue_date == today,
+            or_(
+                Queue.patient_id == patient_id,
+                Appointment.patient_id == patient_id
+            ),
+            Queue.status.in_(
+                ["waiting", "called", "in-progress"]
+            )
+        )
+        .first()
+    )
+
+    if existing_entry:
+        flash(
+            "This patient is already in today's active queue.",
+            "warning"
+        )
+        return redirect(url_for("admin_dashboard"))
+
+    highest_number = (
+        db.session.query(db.func.max(Queue.queue_number))
+        .filter(Queue.queue_date == today)
+        .scalar()
+    )
+
+    next_number = (highest_number or 0) + 1
+
+    queue_entry = Queue(
+        appointment_id=None,
+        patient_id=patient_id,
+        doctor_id=doctor_id,
+        entry_type="walk_in",
+        queue_number=next_number,
+        queue_date=today,
+        status="waiting",
+        checked_in_at=now
+    )
+
+    db.session.add(queue_entry)
+
+    try:
+        db.session.commit()
+
+        flash(
+            f"Walk-in registered successfully! "
+            f"Queue number: {next_number}",
+            "success"
+        )
+
+    except IntegrityError:
+        db.session.rollback()
+        flash(
+            "Queue number conflict. Please try again.",
+            "danger"
+        )
+
+    return redirect(url_for("admin_dashboard"))
+
+
+@appointments_bp.route("/walk-in/<int:queue_id>/call", methods=["POST"])
+@login_required
+def call_walk_in(queue_id):
+    """Allow the assigned doctor to call a waiting walk-in patient."""
+
+    if current_user.role != "doctor" or not current_user.doctor:
+        abort(403)
+
+    queue_entry = db.get_or_404(Queue, queue_id)
+
+    if (
+        queue_entry.entry_type != "walk_in"
+        or queue_entry.doctor_id != current_user.doctor.id
+    ):
+        abort(403)
+
+    if queue_entry.status != "waiting":
+        flash("This patient is no longer waiting.", "warning")
+        return redirect(url_for("doctor_dashboard"))
+
+    queue_entry.status = "called"
+    queue_entry.called_at = datetime.now()
+
+    db.session.commit()
+
+    flash(
+        f"Queue #{queue_entry.queue_number} has been called.",
+        "success"
+    )
+
+    return redirect(url_for("doctor_dashboard"))
+
+
+@appointments_bp.route("/walk-in/<int:queue_id>/start", methods=["POST"])
+@login_required
+def start_walk_in(queue_id):
+    """Start a walk-in visit after the patient responds to their call."""
+
+    if current_user.role != "doctor" or not current_user.doctor:
+        abort(403)
+
+    queue_entry = db.get_or_404(Queue, queue_id)
+
+    if (
+        queue_entry.entry_type != "walk_in"
+        or queue_entry.doctor_id != current_user.doctor.id
+    ):
+        abort(403)
+
+
+    if queue_entry.status != "called":
+        flash("Only called patients can start their visit.", "warning")
+        return redirect(url_for("doctor_dashboard"))
+
+    # Check whether the 5-minute grace period has expired.
+    now = datetime.now()
+
+    if (
+        queue_entry.called_at is not None
+        and now - queue_entry.called_at
+        >= timedelta(minutes=NO_SHOW_GRACE_MINUTES)
+    ):
+        queue_entry.status = "no-show"
+        db.session.commit()
+
+        flash(
+            "The grace period has expired. Patient marked as No-Show.",
+            "warning"
+        )
+        return redirect(url_for("doctor_dashboard"))
+
+    queue_entry.status = "in-progress"
+    db.session.commit()
+
+
+    flash(
+        f"Visit started for queue #{queue_entry.queue_number}.",
+        "success"
+    )
+
+    return redirect(url_for("doctor_dashboard"))
+
+
+@appointments_bp.route("/walk-in/<int:queue_id>/complete", methods=["POST"])
+@login_required
+def complete_walk_in(queue_id):
+    """Complete an in-progress walk-in visit."""
+
+    if current_user.role != "doctor" or not current_user.doctor:
+        abort(403)
+
+    queue_entry = db.get_or_404(Queue, queue_id)
+
+    if (
+        queue_entry.entry_type != "walk_in"
+        or queue_entry.doctor_id != current_user.doctor.id
+    ):
+        abort(403)
+
+    if queue_entry.status != "in-progress":
+        flash("Only in-progress visits can be completed.", "warning")
+        return redirect(url_for("doctor_dashboard"))
+
+    queue_entry.status = "completed"
+    db.session.commit()
+
+    flash(
+        f"Visit completed for queue #{queue_entry.queue_number}.",
+        "success"
+    )
+
+    return redirect(url_for("doctor_dashboard"))

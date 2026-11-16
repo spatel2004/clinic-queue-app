@@ -59,6 +59,85 @@ Receptionist Dashboard
 </div>
 
 
+<!-- Walk-in Registration -->
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+
+        <h5 class="mb-1">Register Walk-In Patient</h5>
+        <p class="text-muted small mb-3">
+            Add a patient to today's queue without a scheduled appointment.
+        </p>
+
+        <form
+            method="POST"
+            action="{{ url_for('appointments.register_walk_in') }}"
+        >
+            <input
+                type="hidden"
+                name="csrf_token"
+                value="{{ csrf_token() }}"
+            >
+
+            <div class="row g-3">
+
+                <div class="col-md-5">
+                    <label for="patient_id" class="form-label">
+                        Select Patient
+                    </label>
+
+                    <select
+                        name="patient_id"
+                        id="patient_id"
+                        class="form-select"
+                        required
+                    >
+                        <option value="">Choose a patient</option>
+
+                        {% for patient in patients %}
+                            <option value="{{ patient.id }}">
+                                {{ patient.user.full_name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-5">
+                    <label for="doctor_id" class="form-label">
+                        Assign Doctor
+                    </label>
+
+                    <select
+                        name="doctor_id"
+                        id="doctor_id"
+                        class="form-select"
+                        required
+                    >
+                        <option value="">Choose a doctor</option>
+
+                        {% for doctor in doctors %}
+                            <option value="{{ doctor.id }}">
+                                {{ doctor.user.full_name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-2 d-flex align-items-end">
+                    <button
+                        type="submit"
+                        class="btn btn-primary w-100"
+                    >
+                        Register
+                    </button>
+                </div>
+
+            </div>
+        </form>
+
+    </div>
+</div>
+
+
 <!-- Pending check-ins -->
 <div class="card shadow-sm mb-4">
 
@@ -189,11 +268,21 @@ Receptionist Dashboard
                                 </td>
 
                                 <td>
-                                    {{ entry.appointment.patient.user.full_name }}
+                                    {% if entry.entry_type == "walk_in" %}
+                                        {{ entry.patient.user.full_name }}
+                                        <span class="badge bg-info text-dark">Walk-In</span>
+                                    {% else %}
+                                        {{ entry.appointment.patient.user.full_name }}
+                                        <span class="badge bg-secondary">Appointment</span>
+                                    {% endif %}
                                 </td>
 
                                 <td>
-                                    {{ entry.appointment.doctor.user.full_name }}
+                                    {% if entry.entry_type == "walk_in" %}
+                                        {{ entry.doctor.user.full_name }}
+                                    {% else %}
+                                        {{ entry.appointment.doctor.user.full_name }}
+                                    {% endif %}
                                 </td>
 
                                 <td>

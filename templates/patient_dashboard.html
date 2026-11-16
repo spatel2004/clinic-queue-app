@@ -45,10 +45,16 @@ Patient Dashboard
                 <div class="col-md-4">
                     <p class="text-muted mb-1">Current Status</p>
 
+
                     {% if queue_entry.status == "waiting" %}
-                        <span class="badge bg-warning text-dark fs-6">
-                            Waiting
-                        </span>
+                    <span class="badge bg-warning text-dark fs-6">
+                        Waiting
+                    </span>
+
+                    {% elif queue_entry.status == "called" %}
+                    <span class="badge bg-info text-dark fs-6">
+                        Called
+                    </span>
 
                     {% elif queue_entry.status == "in-progress" %}
                         <span class="badge bg-primary fs-6">
@@ -74,28 +80,48 @@ Patient Dashboard
 
             <hr>
 
+
             <div class="row g-3">
                 <div class="col-md-6">
                     <p class="text-muted small mb-1">Doctor</p>
                     <strong>
-                        {{ queue_entry.appointment.doctor.user.full_name }}
+                        {% if queue_entry.entry_type == "walk_in" %}
+                            {{ queue_entry.doctor.user.full_name }}
+                        {% else %}
+                            {{ queue_entry.appointment.doctor.user.full_name }}
+                        {% endif %}
                     </strong>
                 </div>
 
                 <div class="col-md-6">
-                    <p class="text-muted small mb-1">Appointment Time</p>
-                    <strong>
-                        {{ queue_entry.appointment.start_time.strftime("%I:%M %p") }}
-                    </strong>
+                    {% if queue_entry.entry_type == "walk_in" %}
+                        <p class="text-muted small mb-1">Visit Type</p>
+                        <strong>Walk-In (No Appointment)</strong>
+                    {% else %}
+                        <p class="text-muted small mb-1">Appointment Time</p>
+                        <strong>
+                            {{ queue_entry.appointment.start_time.strftime("%I:%M %p") }}
+                        </strong>
+                    {% endif %}
                 </div>
             </div>
 
-            {% if queue_entry.status == "waiting" %}
+
+
+                {% if queue_entry.status == "waiting" %}
                 <div class="alert alert-info mt-3 mb-0">
                     You are checked in. Please wait until your number is called.
                 </div>
 
-            {% elif queue_entry.status == "in-progress" %}
+                {% elif queue_entry.status == "called" %}
+                <div class="alert alert-warning mt-3 mb-0">
+                    <strong>Your doctor has called you!</strong>
+                    Please proceed to your doctor.
+                    Walk-in patients have 5 minutes to respond.
+                </div>
+
+                {% elif queue_entry.status == "in-progress" %}
+
                 <div class="alert alert-primary mt-3 mb-0">
                     Your appointment is currently in progress.
                 </div>

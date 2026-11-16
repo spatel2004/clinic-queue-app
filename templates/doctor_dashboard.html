@@ -190,6 +190,7 @@ Doctor Dashboard
                             <th>Appointment Time</th>
                             <th>Check-in Time</th>
                             <th>Status</th>
+                            <th>Action</th>
                         </tr>
                     </thead>
 
@@ -201,26 +202,99 @@ Doctor Dashboard
                                 </td>
 
                                 <td>
-                                    {{ entry.appointment.patient.user.full_name }}
+                                    {% if entry.entry_type == "walk_in" %}
+                                        {{ entry.patient.user.full_name }}
+                                        <span class="badge bg-info text-dark">Walk-In</span>
+                                    {% else %}
+                                        {{ entry.appointment.patient.user.full_name }}
+                                        <span class="badge bg-secondary">Appointment</span>
+                                    {% endif %}
                                 </td>
 
                                 <td>
-                                    {{ entry.appointment.start_time.strftime("%I:%M %p") }}
+                                    {% if entry.entry_type == "walk_in" %}
+                                        <span class="text-muted">Walk-In (No Appointment)</span>
+                                    {% else %}
+                                        {{ entry.appointment.start_time.strftime("%I:%M %p") }}
+                                    {% endif %}
                                 </td>
 
                                 <td>
                                     {{ entry.checked_in_at.strftime("%I:%M %p") }}
                                 </td>
 
+
                                 <td>
                                     {% if entry.status == "waiting" %}
-                                        <span class="badge bg-warning text-dark">Waiting</span>
+                                    <span class="badge bg-warning text-dark">Waiting</span>
+                                    {% elif entry.status == "called" %}
+                                    <span class="badge bg-info text-dark">Called</span>
                                     {% elif entry.status == "in-progress" %}
-                                        <span class="badge bg-primary">In Progress</span>
+                                    <span class="badge bg-primary">In Progress</span>
                                     {% elif entry.status == "completed" %}
-                                        <span class="badge bg-success">Completed</span>
+                                    <span class="badge bg-success">Completed</span>
+                                    {% elif entry.status == "no-show" %}
+                                    <span class="badge bg-danger">No-Show</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">{{ entry.status|title }}</span>
                                     {% endif %}
                                 </td>
+
+
+                                <td>
+                                    {% if entry.entry_type == "walk_in" and entry.status == "waiting" %}
+
+                                        <form
+                                            method="POST"
+                                            action="{{ url_for('appointments.call_walk_in', queue_id=entry.id) }}"
+                                        >
+                                            <input type="hidden"
+                                                name="csrf_token"
+                                                value="{{ csrf_token() }}">
+
+                                            <button type="submit" class="btn btn-primary btn-sm">
+                                                Call Patient
+                                            </button>
+                                        </form>
+
+                                    {% elif entry.entry_type == "walk_in" and entry.status == "called" %}
+
+                                        <form
+                                            method="POST"
+                                            action="{{ url_for('appointments.start_walk_in', queue_id=entry.id) }}"
+                                        >
+                                            <input type="hidden"
+                                                name="csrf_token"
+                                                value="{{ csrf_token() }}">
+
+                                            <button type="submit" class="btn btn-success btn-sm">
+                                                Start Visit
+                                            </button>
+                                        </form>
+
+
+                                    {% elif entry.entry_type == "walk_in" and entry.status == "in-progress" %}
+
+                                    <form
+                                        method="POST"
+                                        action="{{ url_for('appointments.complete_walk_in', queue_id=entry.id) }}"
+                                    >
+                                        <input type="hidden"
+                                            name="csrf_token"
+                                            value="{{ csrf_token() }}">
+
+                                        <button type="submit" class="btn btn-success btn-sm">
+                                            Complete Visit
+                                        </button>
+                                    </form>
+
+
+                                    {% else %}
+                                        <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+
+
                             </tr>
                         {% endfor %}
                     </tbody>
